@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Water Plant - Daily Entry</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">🚰 Water Plant</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a id="addTab" class="nav-link active" href="#">Add Entry</a>
+        </li>
+        <li class="nav-item">
+          <a id="viewTab" class="nav-link" href="#">View Data</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- ADD ENTRY FORM -->
+<div class="container mt-4" id="formSection">
+  <div class="card shadow-lg border-0">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0 fw-bold">Enter Daily Data</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Date</label>
+          <input type="date" class="form-control" id="date">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Driver Name</label>
+          <input type="text" class="form-control" id="driver" placeholder="Enter driver name">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Count of Packages</label>
+          <input type="number" class="form-control" id="count" placeholder="No. of packages">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Village</label>
+          <input type="text" class="form-control" id="village" placeholder="Village name">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Address</label>
+          <textarea class="form-control" id="address" rows="2" placeholder="Full address"></textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary w-100 mt-3 fw-bold" onclick="saveEntry()">💾 Save Entry</button>
+      <!-- Inside the card-body, below the Save button -->
+        <div id="formMessage" class="mt-2 text-center fw-bold"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- VIEW TABLE -->
+<div class="container mt-4" id="tableSection" style="display:none;">
+  <div class="card shadow-lg border-0">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0 fw-bold">Saved Records</h5>
+    </div>
+    <div class="card-body table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-primary text-center">
+          <tr>
+            <th>Date</th>
+            <th>Driver</th>
+            <th>Count</th>
+            <th>Village</th>
+            <th>Address</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="dataBody">
+          <!-- Data loads here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const apiURL = "https://script.google.com/macros/s/AKfycbzEDIWBRES1pn9k_Nu9-DfDjrM0u9Qp4ZHrXbNbzxCbLLvfW-covtjKg0zAN8WIdf4p/exec";
+let editRowNumber = null;
+let allData = []; // cached data
+
+/* ---------------- TAB SWITCH ---------------- */
+document.getElementById("addTab").onclick = () => {
+  document.getElementById("formSection").style.display = "block";
+  document.getElementById("tableSection").style.display = "none";
+  document.getElementById("addTab").classList.add("active");
+  document.getElementById("viewTab").classList.remove("active");
+};
+
+document.getElementById("viewTab").onclick = async () => {
+  document.getElementById("formSection").style.display = "none";
+  document.getElementById("tableSection").style.display = "block";
+  document.getElementById("viewTab").classList.add("active");
+  document.getElementById("addTab").classList.remove("active");
+  await loadData(true); // load spinner only first time or force refresh
+};
+
+/* ---------------- SPINNER ---------------- */
+function showSpinner(targetId) {
+  const target = document.getElementById(targetId);
+  target.innerHTML = `
+    <tr><td colspan="6" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </td></tr>`;
+}
+
+/* ---------------- FORMAT DATE ---------------- */
+function formatDateForInput(input) {
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/* ---------------- CLEAR FORM ---------------- */
+function clearForm() {
+  date.value = "";
+  driver.value = "";
+  count.value = "";
+  village.value = "";
+  address.value = "";
+}
+
+/* ---------------- LOAD DATA ---------------- */
+async function loadData(force=false) {
+  if(force || allData.length === 0){
+    showSpinner("dataBody");
+    const res = await fetch(apiURL + "?action=read");
+    allData = await res.json();
+  }
+
+  const body = document.getElementById("dataBody");
+  body.innerHTML = "";
+
+  if(allData.length === 0){
+    body.innerHTML = `<tr><td colspan="6" class="text-center py-3">No records found</td></tr>`;
+    return;
+  }
+
+  allData.forEach((row, index) => {
+    const dateStr = formatDateForInput(row.date);
+    body.innerHTML += `
+      <tr class="text-center">
+        <td>${dateStr}</td>
+        <td>${row.driver}</td>
+        <td>${row.count}</td>
+        <td>${row.village}</td>
+        <td>${row.address}</td>
+        <td>
+          <button class="btn btn-success btn-sm" onclick="editRow(${index})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRow(${index})">Delete</button>
+        </td>
+      </tr>`;
+  });
+}
+
+/* ---------------- SAVE ENTRY ---------------- */
+async function saveEntry() {
+  if (!date.value || !driver.value || !count.value || !village.value || !address.value) {
+    displayFormMessage("Please fill all fields", "text-danger");
+    return;
+  }
+
+  const saveBtn = event.target;
+  const originalText = saveBtn.innerHTML;
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...`;
+
+  const formData = new URLSearchParams();
+  const action = editRowNumber ? "update" : "add";
+
+  formData.append("action", action);
+  formData.append("date", date.value);
+  formData.append("driver", driver.value);
+  formData.append("count", count.value);
+  formData.append("village", village.value);
+  formData.append("address", address.value);
+  if(editRowNumber) formData.append("id", editRowNumber);
+
+  try {
+    const res = await fetch(`${apiURL}?action=${action}`, { method:"POST", body: formData });
+    await res.json();
+
+    clearForm();
+    editRowNumber = null;
+    await loadData(true); // refresh table
+
+    displayFormMessage(action === "add" ? "Entry saved successfully!" : "Updated successfully!", "text-success");
+  } catch (err) {
+    console.error(err);
+    displayFormMessage("Something went wrong. Try again.", "text-danger");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = originalText;
+  }
+}
+
+/* ---------------- INLINE FORM MESSAGE ---------------- */
+function displayFormMessage(msg, className){
+  const messageEl = document.getElementById("formMessage");
+  messageEl.innerText = msg;
+  messageEl.className = `mt-2 text-center fw-bold ${className}`;
+
+  // auto hide after 3 seconds
+  setTimeout(() => { messageEl.innerText = ""; messageEl.className = "mt-2"; }, 3000);
+}
+
+
+/* ---------------- EDIT ---------------- */
+async function editRow(index){
+  const row = allData[index];
+  document.getElementById("addTab").click();
+  date.value = formatDateForInput(row.date);
+  driver.value = row.driver;
+  count.value = row.count;
+  village.value = row.village;
+  address.value = row.address;
+  editRowNumber = row.id;
+}
+
+window.onload = () => {
+  loadData(true); // initial load with spinner
+}
+</script>
+</body>
+</html>
